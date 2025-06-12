@@ -26,7 +26,7 @@ enum VerificationError {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct JwkConfig {
     pub(crate) audience: String,
-    pub(crate) issuer: String,
+    pub(crate) issuers: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -44,10 +44,10 @@ fn keys_to_map(keys: Vec<Jwk>) -> HashMap<String, Jwk> {
 }
 
 impl JwkVerifier {
-    pub(crate) fn new(keys: Vec<Jwk>, audience: String, issuer: String) -> JwkVerifier {
+    pub(crate) fn new(keys: Vec<Jwk>, audience: String, issuers: Vec<String>) -> JwkVerifier {
         JwkVerifier {
             keys: keys_to_map(keys),
-            config: JwkConfig { audience, issuer },
+            config: JwkConfig { audience, issuers },
         }
     }
 
@@ -71,7 +71,14 @@ impl JwkVerifier {
         };
         let mut validation = Validation::new(algorithm);
         validation.set_audience(&[&self.config.audience]);
-        validation.set_issuer(&[self.config.issuer.clone()]);
+        validation.set_issuer(
+            &self
+                .config
+                .issuers
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+        );
         let key = DecodingKey::from_rsa_components(&key.n, &key.e).map_err(|err| {
             tracing::error!("InvalidDecodingKey: {:?}", err);
             VerificationError::InvalidDecodingKey
@@ -123,17 +130,17 @@ mod tests {
             keys: map,
             config: JwkConfig {
                 audience: "aud".to_string(),
-                issuer: "iss".to_string(),
+                issuers: vec!["iss".to_string()],
             },
         };
-        let obtained = JwkVerifier::new(keys, "aud".to_string(), "iss".to_string());
+        let obtained = JwkVerifier::new(keys, "aud".to_string(), vec!["iss".to_string()]);
         assert_eq!(expected, obtained);
     }
 
     #[test]
     fn test_get_key() {
         let keys = get_test_keys();
-        let verifier = JwkVerifier::new(keys.clone(), "aud".to_string(), "iss".to_string());
+        let verifier = JwkVerifier::new(keys.clone(), "aud".to_string(), vec!["iss".to_string()]);
         assert_eq!(verifier.get_key("kid-0"), Some(&keys[0]));
         assert_eq!(verifier.get_key("kid-1"), Some(&keys[1]));
     }
@@ -141,12 +148,12 @@ mod tests {
     #[test]
     fn test_get_config() {
         let keys = get_test_keys();
-        let verifier = JwkVerifier::new(keys, "aud".to_string(), "iss".to_string());
+        let verifier = JwkVerifier::new(keys, "aud".to_string(), vec!["iss".to_string()]);
         assert_eq!(
             verifier.get_config(),
             Some(&JwkConfig {
                 audience: "aud".to_string(),
-                issuer: "iss".to_string(),
+                issuers: vec!["iss".to_string()],
             })
         );
     }
@@ -154,7 +161,7 @@ mod tests {
     #[test]
     fn test_set_keys() {
         let keys = get_test_keys();
-        let mut verifier = JwkVerifier::new(keys, "aud".to_string(), "iss".to_string());
+        let mut verifier = JwkVerifier::new(keys, "aud".to_string(), vec!["iss".to_string()]);
         verifier.set_keys(vec![]);
         assert!(verifier.get_key("kid-0").is_none());
     }
