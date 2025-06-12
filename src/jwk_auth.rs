@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 const ISSUER_URL: &str = "https://securetoken.google.com/";
+const SESSION_ISSUER_URL: &str = "https://session.firebase.google.com/";
 const DEFAULT_PUBKEY_URL: &str =
     "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
@@ -22,7 +23,22 @@ impl JwkAuth {
     }
 
     pub async fn new_with_url(project_id: String, pubkey_url: String) -> JwkAuth {
+        Self::new_with_options(project_id, pubkey_url, false).await
+    }
+
+    pub async fn new_accepting_session_tokens(project_id: String) -> JwkAuth {
+        let pubkey_url = DEFAULT_PUBKEY_URL.to_string();
+        Self::new_with_options(project_id, pubkey_url, true).await
+    }
+
+    pub async fn new_with_options(project_id: String, pubkey_url: String, accept_session_token: bool) -> JwkAuth {
         let issuer = format!("{}{}", ISSUER_URL, project_id.clone());
+        let mut issuers = vec![issuer];
+        if accept_session_token {
+            let session_issuer = format!("{}{}", SESSION_ISSUER_URL, project_id.clone());
+            issuers.push(session_issuer);
+        }
+        
         let audience = project_id;
         let fetcher = JwkFetcher::new(pubkey_url);
 
@@ -37,7 +53,7 @@ impl JwkAuth {
         let verifier = Arc::new(Mutex::new(JwkVerifier::new(
             jwk_keys.keys,
             audience,
-            issuer,
+            issuers,
         )));
 
         Self::start_periodic_key_update(fetcher, verifier.clone());
@@ -97,7 +113,7 @@ mod tests {
             verifier.get_config(),
             Some(&JwkConfig {
                 audience: project_id.clone(),
-                issuer: format!("{}{}", ISSUER_URL, project_id.clone())
+                issuers: vec![format!("{}{}", ISSUER_URL, project_id.clone())]
             })
         );
     }
