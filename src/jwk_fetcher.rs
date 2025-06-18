@@ -35,3 +35,26 @@ pub(crate) enum JwkFetchError {
 pub trait JwkFetcher: Send {
     async fn fetch_keys(&self) -> Result<JwkFetchResult, JwkFetchError>;
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    
+    pub(crate) const EXPECTED_MAX_AGE: u64 = 20045;
+    
+    pub(crate) async fn setup_mock_server(test_response: &str) -> MockServer {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Cache-Control", "public, max-age=20045")
+                    .set_body_raw(test_response, "application/json"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        mock_server
+    }
+}

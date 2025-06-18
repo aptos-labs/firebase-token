@@ -83,8 +83,7 @@ mod tests {
     use super::*;
     use std::time::Duration;
     use jsonwebtoken::Algorithm;
-    use wiremock::matchers::method;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use crate::jwk_fetcher::tests::{setup_mock_server, EXPECTED_MAX_AGE};
 
     const TEST_RESPONSE: &str = r#"{
         "keys": [
@@ -97,24 +96,9 @@ mod tests {
         ]
     }"#;
 
-    async fn get_mock_server() -> MockServer {
-        let mock_server = MockServer::start().await;
-
-        Mock::given(method("GET"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("Cache-Control", "public, max-age=20045")
-                    .set_body_raw(TEST_RESPONSE, "application/json"),
-            )
-            .mount(&mock_server)
-            .await;
-
-        mock_server
-    }
-
     #[tokio::test]
     async fn test_fetch() {
-        let mock_server = get_mock_server().await;
+        let mock_server = setup_mock_server(TEST_RESPONSE).await;
         let result = IdTokenJwkFetcher::new_with_url(mock_server.uri())
             .fetch_keys()
             .await;
@@ -122,9 +106,9 @@ mod tests {
         assert!(result.is_ok());
         let result = result.unwrap();
 
-        assert_eq!(result.ttl, Duration::from_secs(20045));
+        assert_eq!(result.ttl, Duration::from_secs(EXPECTED_MAX_AGE));
         assert_eq!(result.jwks.len(), 1);
-        
+
         let jwk = result.jwks.get("a4a10dece98366d6f63e167286ae9b611d2baa27");
         assert!(jwk.is_some_and(|jwk| jwk.alg == Algorithm::RS256));
     }
