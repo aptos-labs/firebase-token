@@ -6,7 +6,6 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use crate::id_token_jwk_fetcher::IdTokenJwkFetcher;
 use crate::session_token_jwk_fetcher::SessionTokenJwkFetcher;
-use crate::jwk_fetcher::JwkFetcher;
 
 const ID_TOKEN_ISSUER_URL: &str = "https://securetoken.google.com/";
 const SESSION_TOKEN_ISSUER_URL: &str = "https://session.firebase.google.com/";
@@ -29,8 +28,8 @@ impl FirebaseTokenAuth {
             let issuer = format!("{}{}", ID_TOKEN_ISSUER_URL, project_id.clone());
             let verifier = Arc::new(Mutex::new(JwtVerifier::new(audience.clone(), issuer)));
 
-            let jwk_fetcher = Box::new(IdTokenJwkFetcher::new());
-            start_periodic_jwks_update(jwk_fetcher, verifier.clone(), "ID token".to_owned());
+            let jwk_fetcher = JwkFetcher::IdToken(IdTokenJwkFetcher::new());
+            start_periodic_jwks_update(jwk_fetcher, verifier.clone());
             verifiers.push(verifier);
         }
 
@@ -38,8 +37,8 @@ impl FirebaseTokenAuth {
             let issuer = format!("{}{}", SESSION_TOKEN_ISSUER_URL, project_id.clone());
             let verifier = Arc::new(Mutex::new(JwtVerifier::new(audience.clone(), issuer)));
 
-            let jwk_fetcher = Box::new(SessionTokenJwkFetcher::new());
-            start_periodic_jwks_update(jwk_fetcher, verifier.clone(), "Session token".to_owned());
+            let jwk_fetcher = JwkFetcher::SessionToken(SessionTokenJwkFetcher::new());
+            start_periodic_jwks_update(jwk_fetcher, verifier.clone());
             verifiers.push(verifier);
         }
 
@@ -60,10 +59,25 @@ impl FirebaseTokenAuth {
     }
 }
 
-fn start_periodic_jwks_update(fetcher: Box<dyn JwkFetcher>, verifier: Arc<Mutex<JwtVerifier>>, label: String) {
+enum JwkFetcher {
+    IdToken(IdTokenJwkFetcher),
+    SessionToken(SessionTokenJwkFetcher),
+}
+
+fn start_periodic_jwks_update(fetcher: JwkFetcher, verifier: Arc<Mutex<JwtVerifier>>) {
     tokio::spawn(async move {
+        let label = match &fetcher {
+            JwkFetcher::IdToken(_f) => "ID token",
+            JwkFetcher::SessionToken(_f) =>  "Session token",
+        };
+
         loop {
-            let ttl = match fetcher.fetch_keys().await {
+            let result = match &fetcher {
+                JwkFetcher::IdToken(f) => f.fetch_keys().await,
+                JwkFetcher::SessionToken(f) =>  f.fetch_keys().await,
+            };
+
+            let ttl = match result {
                 Ok(result) => {
                     let mut verifier = verifier.lock().await;
                     verifier.set_jwks(result.jwks);
@@ -74,6 +88,7 @@ fn start_periodic_jwks_update(fetcher: Box<dyn JwkFetcher>, verifier: Arc<Mutex<
                     Duration::from_secs(60)
                 }
             };
+
             tracing::info!("Updated {:?} JWKs. Next refresh will be in {:?}", label, ttl);
             tokio::time::sleep(ttl).await;
         }

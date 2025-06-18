@@ -3,9 +3,8 @@ use jsonwebtoken::{Algorithm, DecodingKey};
 use serde::{Deserialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use crate::jwk_fetcher::{JwkFetchError, JwkFetchResult, JwkFetcher, JwkInfo};
+use crate::jwk_fetcher::{JwkFetchError, JwkFetchResult, JwkInfo};
 use std::str::FromStr;
-use async_trait::async_trait;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -38,11 +37,8 @@ impl IdTokenJwkFetcher {
     fn new_with_url(url: String) -> IdTokenJwkFetcher {
         IdTokenJwkFetcher { url }
     }
-}
 
-#[async_trait]
-impl JwkFetcher for IdTokenJwkFetcher {
-    async fn fetch_keys(&self) -> Result<JwkFetchResult, JwkFetchError> {
+    pub async fn fetch_keys(&self) -> Result<JwkFetchResult, JwkFetchError> {
         let response = reqwest::get(&self.url)
             .await
             .map_err(JwkFetchError::RequestError)?;

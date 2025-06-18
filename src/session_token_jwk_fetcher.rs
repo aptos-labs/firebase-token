@@ -1,6 +1,5 @@
 use crate::header_parser::get_max_age;
-use crate::jwk_fetcher::{JwkFetchError, JwkFetchResult, JwkFetcher, JwkInfo};
-use async_trait::async_trait;
+use crate::jwk_fetcher::{JwkFetchError, JwkFetchResult, JwkInfo};
 use jsonwebtoken::{Algorithm, DecodingKey};
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
@@ -30,11 +29,8 @@ impl SessionTokenJwkFetcher {
     fn new_with_url(url: String) -> SessionTokenJwkFetcher {
         SessionTokenJwkFetcher { url }
     }
-}
 
-#[async_trait]
-impl JwkFetcher for SessionTokenJwkFetcher {
-    async fn fetch_keys(&self) -> Result<JwkFetchResult, JwkFetchError> {
+    pub async fn fetch_keys(&self) -> Result<JwkFetchResult, JwkFetchError> {
         let response = reqwest::get(&self.url)
             .await
             .map_err(JwkFetchError::RequestError)?;

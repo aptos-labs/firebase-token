@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use jsonwebtoken::{Algorithm, DecodingKey};
 use std::collections::HashMap;
 use std::fmt;
@@ -29,11 +28,6 @@ pub(crate) struct JwkFetchResult {
 pub(crate) enum JwkFetchError {
     RequestError(reqwest::Error),
     ResponseBodyError(reqwest::Error),
-}
-
-#[async_trait]
-pub trait JwkFetcher: Send {
-    async fn fetch_keys(&self) -> Result<JwkFetchResult, JwkFetchError>;
 }
 
 #[cfg(test)]
