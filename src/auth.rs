@@ -30,7 +30,7 @@ impl FirebaseTokenAuth {
             let verifier = Arc::new(Mutex::new(JwtVerifier::new(audience.clone(), issuer)));
 
             let jwk_fetcher = Box::new(IdTokenJwkFetcher::new());
-            start_periodic_jwks_update(jwk_fetcher, verifier.clone());
+            start_periodic_jwks_update(jwk_fetcher, verifier.clone(), "ID token".to_owned());
             verifiers.push(verifier);
         }
 
@@ -39,7 +39,7 @@ impl FirebaseTokenAuth {
             let verifier = Arc::new(Mutex::new(JwtVerifier::new(audience.clone(), issuer)));
 
             let jwk_fetcher = Box::new(SessionTokenJwkFetcher::new());
-            start_periodic_jwks_update(jwk_fetcher, verifier.clone());
+            start_periodic_jwks_update(jwk_fetcher, verifier.clone(), "Session token".to_owned());
             verifiers.push(verifier);
         }
 
@@ -60,7 +60,7 @@ impl FirebaseTokenAuth {
     }
 }
 
-fn start_periodic_jwks_update(fetcher: Box<dyn JwkFetcher>, verifier: Arc<Mutex<JwtVerifier>>) {
+fn start_periodic_jwks_update(fetcher: Box<dyn JwkFetcher>, verifier: Arc<Mutex<JwtVerifier>>, label: String) {
     tokio::spawn(async move {
         loop {
             let ttl = match fetcher.fetch_keys().await {
@@ -70,11 +70,11 @@ fn start_periodic_jwks_update(fetcher: Box<dyn JwkFetcher>, verifier: Arc<Mutex<
                     result.ttl
                 }
                 Err(err) => {
-                    tracing::error!("Update ID token JWK Keys Error {:?}", err);
+                    tracing::error!("{:?} JWKs update error: {:?}", label, err);
                     Duration::from_secs(60)
                 }
             };
-            tracing::info!("Updated ID token JWK Keys. Next refresh will be in {:?}", ttl);
+            tracing::info!("Updated {:?} JWKs. Next refresh will be in {:?}", label, ttl);
             tokio::time::sleep(ttl).await;
         }
     });
