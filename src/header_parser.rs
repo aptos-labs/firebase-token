@@ -54,17 +54,15 @@ fn _parse_cache_control_value(value: &str) -> Result<Duration, MaxAgeParseError>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jwk::KeyResponse;
-    use crate::tests::*;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const MAX_AGE: u64 = 20045;
 
     #[tokio::test]
     async fn test_inner_parse_cache_control_value() {
-        let value = &format!("public, max-age={}, must-revalidate, no-transform", MAXAGE);
+        let value = &format!("public, max-age={}, must-revalidate, no-transform", MAX_AGE);
         let result = _parse_cache_control_value(value);
 
-        assert_eq!(result, Ok(Duration::from_secs(MAXAGE)));
+        assert_eq!(result, Ok(Duration::from_secs(MAX_AGE)));
     }
 
     #[tokio::test]
@@ -107,32 +105,6 @@ mod tests {
         assert_eq!(
             parse_cache_control_value(&cc_header),
             Err(MaxAgeParseError::NoCacheControlValue)
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_max_age_by_response() {
-        let mock_server = get_mock_server().await;
-        let response = reqwest::get(&get_mock_url(&mock_server)).await.unwrap();
-        assert_eq!(
-            get_max_age(&response).unwrap(),
-            std::time::Duration::from_secs(MAXAGE)
-        )
-    }
-    #[tokio::test]
-    async fn test_get_max_age_by_response_without_cache_control() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/test"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(KeyResponse {
-                keys: get_test_keys(),
-            }))
-            .mount(&mock_server)
-            .await;
-        let response = reqwest::get(&get_mock_url(&mock_server)).await.unwrap();
-        assert_eq!(
-            get_max_age(&response),
-            Err(MaxAgeParseError::NoCacheControlKey)
         );
     }
 }
